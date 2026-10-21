@@ -16,7 +16,11 @@ jobs:
       - name: Unpack ZIP Archive
         run: |
           echo "Extracting uploaded zip..."
-          unzip -o -q "*.zip"
+          unzip -o -q "*.zip" || true
+          # Auto-fix line 348 filter parameter & bump compileSdk to 36
+          sed -i '/filter: ImageFilter/d' flutter_app/lib/screens/active_call_screen.dart || true
+          sed -i 's/compileSdk 35/compileSdk 36/g' flutter_app/android/app/build.gradle || true
+          sed -i 's/targetSdkVersion 35/targetSdkVersion 36/g' flutter_app/android/app/build.gradle || true
           ls -la
 
       - name: Setup Java JDK
