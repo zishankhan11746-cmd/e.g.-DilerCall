@@ -13,15 +13,23 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Unpack ZIP Archive
+      - name: Prepare Workspace & Detect Flutter Directory
         run: |
-          echo "Extracting uploaded zip..."
-          unzip -o -q "*.zip" || true
-          # Auto-fix line 348 filter parameter & bump compileSdk to 36
-          sed -i '/filter: ImageFilter/d' flutter_app/lib/screens/active_call_screen.dart || true
-          sed -i 's/compileSdk 35/compileSdk 36/g' flutter_app/android/app/build.gradle || true
-          sed -i 's/targetSdkVersion 35/targetSdkVersion 36/g' flutter_app/android/app/build.gradle || true
-          ls -la
+          echo "Checking directory structure..."
+          if [ -f "pubspec.yaml" ]; then
+            TARGET_DIR="."
+          elif [ -f "flutter_app/pubspec.yaml" ]; then
+            TARGET_DIR="flutter_app"
+          else
+            PUBSPEC_PATH=$(find . -name "pubspec.yaml" -not -path "*/.*" | head -n 1)
+            if [ -n "$PUBSPEC_PATH" ]; then
+              TARGET_DIR=$(dirname "$PUBSPEC_PATH")
+            else
+              TARGET_DIR="."
+            fi
+          fi
+          echo "Detected project directory: $TARGET_DIR"
+          echo "FLUTTER_PROJECT_DIR=$TARGET_DIR" >> $GITHUB_ENV
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -36,16 +44,20 @@ jobs:
           cache: true
 
       - name: Install Dependencies
-        working-directory: ./flutter_app
-        run: flutter pub get
+        run: |
+          cd ${{ env.FLUTTER_PROJECT_DIR }}
+          flutter pub get
 
       - name: Build Android Release APK
-        working-directory: ./flutter_app
-        run: flutter build apk --release --android-skip-build-dependency-validation
+        run: |
+          cd ${{ env.FLUTTER_PROJECT_DIR }}
+          flutter build apk --release --android-skip-build-dependency-validation
 
-      - name: Upload APK Artifact
+      - name: Locate & Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: StackDialer-Release-APK
-          path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            **/build/app/outputs/flutter-apk/app-release.apk
+            **/build/app/outputs/apk/release/*.apk
           if-no-files-found: error
